@@ -256,7 +256,7 @@ def generate_response(chat_id: Union[int, str], input_text: str) -> str:
 
 
 @restricted
-async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def Reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handle media messages (photos, videos, audio, etc.) from users.
     
