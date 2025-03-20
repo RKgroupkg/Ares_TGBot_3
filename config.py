@@ -24,7 +24,7 @@ LOADING_BAR = r"assets/progress.jpg"
 
 
 # API KEYS
-GEMINE_API_KEY = os.environ.get("GEMINE_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINE_API_KEY")
 TLG_TOKEN = os.environ.get("TLG_TOKEN")
 
 
@@ -34,13 +34,21 @@ DB_SESSION_INFO=json.loads(os.environ.get("DB_SESSION_INFO"))
 
 OWNER_ID = 6258187891
 OWNER_NAME = "Rkgroup"
-OWNER_USERNAME = "Rkgroup5316"
+OWNER_USERNAME = "rkgroup_update"
 OWNER_INFO_HTML = f"<a href='tg://user?id={OWNER_ID}'>{OWNER_NAME}</a>"
 
 SUPPORT_CHAT_ID = 2295233426
 SUPPORT_CHAT_NAME = "Ares"
 SUPPORT_CHAT_INFO_HTML = f"<a href='https://t.me/Rkgroup_helpbot?start=start'>Support /Assistance</a>"
-START_SWITCH = ("hey ares", "hi ares", "ares", "yo ares","hello ares","what's up ares")
+START_SWITCH = (
+    "hey ares", "hi ares", "ares", "yo ares", "hello ares", "what's up ares",
+    "greetings ares", "ares buddy", "ares you there?", "sup ares", "hey there ares",
+    "ares wake up", "ares online?", "ares listen", "ares start", "ares go",
+    "hello there ares", "ares activate", "hey ares bot", "yo what's up ares",
+    "ares respond", "ares wake", "ares on", "hi there ares", "ares hey",
+    "ares ready?", "ares boot up", "ares engage", "ares launch", "ares begin",
+    "ares init", "ares initiate"
+)
 
 LOGGER_CHATID = -1002417887574
 
