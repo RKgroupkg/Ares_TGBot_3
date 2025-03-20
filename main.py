@@ -21,7 +21,7 @@ from Modules.adminCommands.broad_cast import (
 
 )
 logger.info("Importing admin Status commamds...")
-from Modules.adminCommands.status import STATS_CMD,SPEED_CMD,DBSTATS,LOG_CMD
+from Modules.adminCommands.status import STATS_CMD,SPEED_CMD,DBSTATS_CMD,LOG_CMD
 from Modules.adminCommands.Admin_cmds import CHAT_INFO_CMD,CHAT_DATA_CMD,UN_BAN_CMD,BAN_CMD
 logger.info("Importing users util commands...")
 from Modules.users_command.Utils import PASTE_CMD,PING_CMD,ID_CMD
@@ -175,7 +175,7 @@ def main() -> None:
     application.add_handler(WARN_USER_BROADCAST)
     application.add_handler(STATS_CMD)
     application.add_handler(SPEED_CMD)
-    application.add_handler(DBSTATS)
+    application.add_handler(DBSTATS_CMD)
     application.add_handler(LOG_CMD)
     application.add_handler(CHAT_INFO_CMD)
     application.add_handler(CHAT_DATA_CMD)
