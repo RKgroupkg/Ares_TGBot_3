@@ -1,145 +1,306 @@
 import re
 
-def find_all_index(str, pattern):
+def find_all_index(text, pattern):
+    """Find all starting and ending indices of matches for a regex pattern.
+    
+    Args:
+        text: The string to search in
+        pattern: The regex pattern with capturing group
+        
+    Returns:
+        A list of indices marking the boundaries of matches and non-matches
+    """
     index_list = [0]
-    for match in re.finditer(pattern, str, re.MULTILINE):
-        if match.group(1) != None:
+    for match in re.finditer(pattern, text, re.MULTILINE):
+        if match.group(1) is not None:
             start = match.start(1)
             end = match.end(1)
             index_list += [start, end]
-    index_list.append(len(str))
+    index_list.append(len(text))
     return index_list
 
 def replace_all(text, pattern, function):
-    poslist = [0]
-    strlist = []
-    originstr = []
+    """Replace all matches of a pattern with the result of a function.
+    
+    Args:
+        text: The string to perform replacements on
+        pattern: The regex pattern with capturing group
+        function: A function that takes a match string and returns a replacement
+        
+    Returns:
+        The text with all replacements applied
+    """
     poslist = find_all_index(text, pattern)
-    for i in range(1, len(poslist[:-1]), 2):
-        start, end = poslist[i:i+2]
-        strlist.append(function(text[start:end]))
+    
+    # Extract parts that match the pattern (to be transformed)
+    matched_parts = []
+    for i in range(1, len(poslist) - 1, 2):
+        start, end = poslist[i], poslist[i + 1]
+        matched_parts.append(function(text[start:end]))
+    
+    # Extract parts that don't match the pattern (to be preserved)
+    preserved_parts = []
     for i in range(0, len(poslist), 2):
-        j, k = poslist[i:i+2]
-        originstr.append(text[j:k])
-    if len(strlist) < len(originstr):
-        strlist.append('')
-    else:
-        originstr.append('')
-    new_list = [item for pair in zip(originstr, strlist) for item in pair]
-    return ''.join(new_list)
+        if i + 1 < len(poslist):
+            j, k = poslist[i], poslist[i + 1]
+            preserved_parts.append(text[j:k])
+    
+    # Handle edge cases with different list lengths
+    if len(matched_parts) < len(preserved_parts):
+        matched_parts.append('')
+    elif len(preserved_parts) < len(matched_parts):
+        preserved_parts.append('')
+    
+    # Interleave the preserved and transformed parts
+    result = []
+    for orig, transformed in zip(preserved_parts, matched_parts):
+        result.append(orig)
+        result.append(transformed)
+    
+    return ''.join(result)
 
 def escapeshape(text):
-    return '▎*' + " ".join(text.split()[1:]) + '*\n\n'
+    """Format headers for Telegram markdown.
+    
+    Args:
+        text: Header text
+        
+    Returns:
+        Formatted header for Telegram
+    """
+    if not text.strip():
+        return ''
+    
+    # Extract header text without the # marks
+    words = text.split()
+    if words and words[0].startswith('#'):
+        return '▎*' + " ".join(words[1:]) + '*\n\n'
+    return text
 
-def escapeminus(text):
+def escape_special_char(text):
+    """Escape a special character by adding backslash.
+    
+    Args:
+        text: The character to escape
+        
+    Returns:
+        Escaped character
+    """
     return '\\' + text
 
-def escapeminus2(text):
+def escape_minus(text):
+    """Escape minus character.
+    
+    Args:
+        text: Text containing minus
+        
+    Returns:
+        Text with escaped minus
+    """
+    return '\\' + text
+
+def escape_temp_minus(text):
+    """Convert minus to temporary marker.
+    
+    Args:
+        text: Text containing minus
+        
+    Returns:
+        Text with minus replaced by marker
+    """
     return r'@+>@'
 
-def escapebackquote(text):
+def escape_backquote(text):
+    """Escape double backticks.
+    
+    Args:
+        text: Text containing backticks
+        
+    Returns:
+        Text with escaped backticks
+    """
     return r'\`\`'
 
-def escapebackquoteincode(text):
+def escape_backquote_in_code(text):
+    """Replace backtick in code blocks with temporary marker.
+    
+    Args:
+        text: Text containing backtick
+        
+    Returns:
+        Text with backtick replaced by marker
+    """
     return r'@->@'
 
-def escapeplus(text):
-    return '\\' + text
-
-def escape_all_backquote(text):
-    return '\\' + text
-
-def find_lines_with_char(s, char, min_count):
+def fix_uneven_backticks(text):
+    """Fix lines with uneven backtick counts.
+    
+    Args:
+        text: The text to process
+        
+    Returns:
+        Text with properly escaped backticks
     """
-    返回字符串中每行包含特定字符至少min_count次的行的索引列表。
-
-    参数:
-    s (str): 要处理的字符串。
-    char (str): 要计数的字符。
-    min_count (int): 最小出现次数。
-
-    返回:
-    list: 满足条件的行的索引列表。
-    """
-    lines = s.split('\n')  # 按行拆分字符串
-
+    lines = text.split('\n')
+    in_code_block = False
+    
     for index, line in enumerate(lines):
-        if re.sub(r"```", '', line).count(char) % 2 != 0 or (not line.strip().startswith("```") and line.count(char) % 2 != 0):
-            # lines[index] = re.sub(r"`", '\`', line)
-            lines[index] = replace_all(lines[index], r"\\`|(`)", escape_all_backquote)
-
+        # Skip backtick escaping within code blocks
+        if line.strip().startswith('```'):
+            in_code_block = not in_code_block
+            continue
+            
+        # Only process lines not in code blocks
+        if not in_code_block:
+            # Count backticks outside of existing escaped sequences
+            clean_line = re.sub(r"\\`", '', line)
+            if clean_line.count('`') % 2 != 0:
+                # Replace all unescaped backticks with escaped ones
+                lines[index] = replace_all(line, r"\\`|(`)", lambda x: '\\' + x)
+    
     return "\n".join(lines)
 
 def escape(text, flag=0):
-    # In all other places characters
-    # _ * [ ] ( ) ~ ` > # + - = | { } . !
-    # must be escaped with the preceding character '\'.
+    """Escape text to be Telegram-compatible.
+    
+    Args:
+        text: The text to escape
+        flag: Flag for special handling of backslashes
+        
+    Returns:
+        Telegram-compatible escaped text
+    """
+    # Save already escaped brackets and parentheses
     text = re.sub(r"\\\[", '@->@', text)
     text = re.sub(r"\\\]", '@<-@', text)
     text = re.sub(r"\\\(", '@-->@', text)
     text = re.sub(r"\\\)", '@<--@', text)
+    
+    # Handle backslashes special case
     if flag:
         text = re.sub(r"\\\\", '@@@', text)
+    
+    # Save escaped backticks
     text = re.sub(r"\\`", '@<@', text)
+    
+    # Double all backslashes
     text = re.sub(r"\\", r"\\\\", text)
+    
+    # Restore special backslashes if needed
     if flag:
         text = re.sub(r"\@{3}", r"\\\\", text)
+    
+    # Escape underscores
     text = re.sub(r"_", '\_', text)
+    
+    # Handle bold text (save for later restoration)
     text = re.sub(r"\*{2}(.*?)\*{2}", '@@@\\1@@@', text)
+    
+    # Convert bullet lists
     text = re.sub(r"\n{1,2}\*\s", '\n\n• ', text)
+    
+    # Escape asterisks
     text = re.sub(r"\*", '\*', text)
+    
+    # Restore bold text
     text = re.sub(r"\@{3}(.*?)\@{3}", '*\\1*', text)
+    
+    # Handle links (save for later restoration)
     text = re.sub(r"\!?\[(.*?)\]\((.*?)\)", '@@@\\1@@@^^^\\2^^^', text)
+    
+    # Escape brackets and parentheses
     text = re.sub(r"\[", '\[', text)
     text = re.sub(r"\]", '\]', text)
     text = re.sub(r"\(", '\(', text)
     text = re.sub(r"\)", '\)', text)
+    
+    # Restore saved brackets and parentheses
     text = re.sub(r"\@\-\>\@", '\[', text)
     text = re.sub(r"\@\<\-\@", '\]', text)
     text = re.sub(r"\@\-\-\>\@", '\(', text)
     text = re.sub(r"\@\<\-\-\@", '\)', text)
+    
+    # Restore links
     text = re.sub(r"\@{3}(.*?)\@{3}\^{3}(.*?)\^{3}", '[\\1](\\2)', text)
+    
+    # Escape other special characters
     text = re.sub(r"~", '\~', text)
     text = re.sub(r">", '\>', text)
+    
+    # Format headers
     text = replace_all(text, r"(^#+\s.+?\n+)|```[\D\d\s]+?```", escapeshape)
+    
+    # Escape hash marks
     text = re.sub(r"#", '\#', text)
-    text = replace_all(text, r"(\+)|\n[\s]*-\s|```[\D\d\s]+?```|`[\D\d\s]*?`", escapeplus)
+    
+    # Handle plus and list items
+    text = replace_all(text, r"(\+)|\n[\s]*-\s|```[\D\d\s]+?```|`[\D\d\s]*?`", escape_special_char)
+    
+    # Format numbered lists
     text = re.sub(r"\n{1,2}(\s*\d{1,2}\.\s)", '\n\n\\1', text)
-    # # 把 code block 以外的 - 替换掉
-    text = replace_all(text, r"```[\D\d\s]+?```|(-)", escapeminus2)
+    
+    # Handle minus signs: first preserve those in code blocks
+    text = replace_all(text, r"```[\D\d\s]+?```|(-)", escape_temp_minus)
     text = re.sub(r"-", '@<+@', text)
     text = re.sub(r"\@\+\>\@", '-', text)
-
+    
+    # Convert dash lists to bullet points
     text = re.sub(r"\n{1,2}(\s*)-\s", '\n\n\\1• ', text)
+    
+    # Escape remaining minus signs
     text = re.sub(r"\@\<\+\@", '\-', text)
-    text = replace_all(text, r"(-)|\n[\s]*-\s|```[\D\d\s]+?```|`[\D\d\s]*?`", escapeminus)
+    text = replace_all(text, r"(-)|\n[\s]*-\s|```[\D\d\s]+?```|`[\D\d\s]*?`", escape_minus)
+    
+    # Save code blocks for later restoration
     text = re.sub(r"```([\D\d\s]+?)```", '@@@\\1@@@', text)
-    # 把 code block 里面的`替换掉
-    text = replace_all(text, r"\@\@\@[\s\d\D]+?\@\@\@|(`)", escapebackquoteincode)
+    
+    # Handle backticks in code blocks
+    text = replace_all(text, r"\@\@\@[\s\d\D]+?\@\@\@|(`)", escape_backquote_in_code)
+    
+    # Escape remaining backticks
     text = re.sub(r"`", '\`', text)
     text = re.sub(r"\@\<\@", '\`', text)
     text = re.sub(r"\@\-\>\@", '`', text)
-
-    # text = replace_all(text, r"`.*?`{1,2}|(`)", escapebackquoteincode)
-    # text = re.sub(r"`", '\`', text)
-    # text = re.sub(r"\@\-\>\@", '`', text)
-    # print(text)
-
-    text = replace_all(text, r"(``)", escapebackquote)
+    
+    # Handle double backticks
+    text = replace_all(text, r"(``)", escape_backquote)
+    
+    # Restore code blocks
     text = re.sub(r"\@{3}([\D\d\s]+?)\@{3}", '```\\1```', text)
+    
+    # Escape remaining special characters
     text = re.sub(r"=", '\=', text)
     text = re.sub(r"\|", '\|', text)
     text = re.sub(r"{", '\{', text)
     text = re.sub(r"}", '\}', text)
     text = re.sub(r"\.", '\.', text)
     text = re.sub(r"!", '\!', text)
-    text = find_lines_with_char(text, '`', 5)
+    
+    # Fix lines with uneven backtick counts
+    text = fix_uneven_backticks(text)
+    
     return text
 
 def beautify_views(views):
-    views =''.join(filter(str.isdigit, views))
-
+    """Format view counts in a readable way.
+    
+    Args:
+        views: The view count string or number
+        
+    Returns:
+        Formatted view count (e.g., "1.2 k", "3.4 m")
+    """
+    if not views:
+        return "0"
+        
+    # Extract digits from the input
+    views = ''.join(filter(str.isdigit, str(views)))
+    
+    if not views:
+        return "0"
+        
     views = int(views)
+    
     if views < 1000:
         return str(views)
     elif views < 1_000_000:
@@ -152,6 +313,47 @@ def beautify_views(views):
 
 if __name__ == '__main__':
     import os
-    os.system('clear')
-    text = escape(input("text"))
-    print(text)
+    # Clear terminal screen
+    os.system('clear' if os.name == 'posix' else 'cls')
+    
+    # Get input from user and escape it
+    sample_text = """
+# This is a header
+This is some text with *italics* and **bold** and `code`.
+Here's a [link](https://example.com).
+
+This is a list:
+* Item 1
+* Item 2
+- Item 3
+- Item 4
+
+1. Numbered item
+2. Another numbered item
+
+```python
+def hello():
+    print("Hello world!")
+    # Comments with # and special chars: _*[]()~`>#+-=|{}.!
+```
+
+Special characters: _*[]()~`>#+-=|{}.!
+    """
+    
+    print("Sample text:")
+    print("-" * 40)
+    print(sample_text)
+    print("-" * 40)
+    
+    escaped_text = escape(sample_text)
+    print("\nEscaped text for Telegram:")
+    print("-" * 40)
+    print(escaped_text)
+    print("-" * 40)
+    
+    print("\nEnter your own text to escape (or press Enter to skip):")
+    user_input = input()
+    if user_input:
+        print("\nYour escaped text:")
+        print("-" * 40)
+        print(escape(user_input))
