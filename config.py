@@ -24,7 +24,9 @@ LOADING_BAR = r"assets/progress.jpg"
 
 
 # API KEYS
+
 GEMINI_API_KEY = os.environ.get("GEMINE_API_KEY")
+GEMINE_API_KEY = os.environ.get("GEMINE_API_KEY")
 TLG_TOKEN = os.environ.get("TLG_TOKEN")
 
 
