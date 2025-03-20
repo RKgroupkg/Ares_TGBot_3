@@ -10,7 +10,7 @@ from assets.assets import load_asset
 from _error_handller import error_handler
 
 logger.info("Loading message handllers....")
-from Modules.chat_handller import process_message,media_handler,Reply_handller,clear_history_commamd,changeprompt_command,Chat_Info_command
+from Modules.chat_handller import process_message,media_handler,Reply_handler,clear_history_command,change_prompt_command,chat_info_command
 
 from utils.decoders_ import rate_limit,restricted
 logger.info("Importing commands handllers...")
@@ -136,7 +136,7 @@ def main() -> None:
    
     message_handler = MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Entity(MessageEntity.MENTION)& ~filters.REPLY & ~filters.Entity(MessageEntity.TEXT_MENTION), process_message)
     mediaChat_handler = MessageHandler(filters.VOICE |filters.AUDIO | filters.VIDEO |filters.PHOTO |filters.Document.ALL & ~filters.Entity("MENTION") ,media_handler)
-    Reply_handler = MessageHandler(filters.REPLY & ~filters.COMMAND & ~filters.Entity(MessageEntity.MENTION)& ~filters.Entity(MessageEntity.TEXT_MENTION),Reply_handller)
+    Reply_handler = MessageHandler(filters.REPLY & ~filters.COMMAND & ~filters.Entity(MessageEntity.MENTION)& ~filters.Entity(MessageEntity.TEXT_MENTION),Reply_handler)
     application.add_handler(message_handler)
     application.add_handler(mediaChat_handler)
     application.add_handler(Reply_handler)
@@ -155,9 +155,9 @@ def main() -> None:
     application.add_handler(PASTE_CMD)
     application.add_handler(PING_CMD)
     application.add_handler(ID_CMD)
-    application.add_handler(clear_history_commamd)
-    application.add_handler(changeprompt_command)
-    application.add_handler(Chat_Info_command)
+    application.add_handler(clear_history_command)
+    application.add_handler(change_prompt_command)
+    application.add_handler(chat_info_command)
     
     # Owner commands
     application.add_handler(SHELL_CMD)
