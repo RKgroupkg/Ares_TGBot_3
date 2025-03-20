@@ -101,7 +101,7 @@ def rate_limit(func):
     return wrapper
 
 
-def restricted(func):
+def restricted (func):
     """
     Restricts access to commands for banned users with improved error handling.
     """

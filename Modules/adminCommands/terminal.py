@@ -10,7 +10,7 @@ from io import StringIO
 import time
 import subprocess
 
-from utils.decoders_ import IsOwner, restricted_admin
+from utils.decoders_ import IsOwner
 from utils.helper.pasting_servises import katbin_paste, hastebin_paste
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
