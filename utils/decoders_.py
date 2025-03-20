@@ -3,206 +3,220 @@ from utils.log import logger
 from assets.assets import load_asset
 from config import ERROR429, LOGGER_CHATID, OWNER_ID
 from utils.dataBase.FireDB import DB
-from Modules.inline import ADMIN_ERROR, RATE_LIMITION
+from Modules.inline import ADMIN_ERROR
+
+from Modules.inline import RATE_LIMITION
 from utils.rate_limit import RateLimiter
 from cachetools import TTLCache
-from typing import Callable, Any, Set, Dict, Optional
-from telegram import Update
-from telegram.ext import ContextTypes
+import asyncio
+from datetime import datetime
+
+LIST_OF_BAN_IDS = DB.blocked_users_cache
+ADMIN_ID_LIST = DB.admins_users
+
+# Improved rate limiter with more efficient bucket algorithm
+ratelimit = RateLimiter()
+
+# Storing spammy users in cache for 1 minute before allowing them to use commands again
+warned_users = TTLCache(maxsize=256, ttl=60)
+warning_message = "Spam detected! Ignoring your requests for a few minutes."
+
+# Cache for users who have been reported to avoid repeated reports
+reported_users = TTLCache(maxsize=128, ttl=300)  # 5 minutes cache for reported users
+
+# Add a cooldown period for certain commands
+command_cooldowns = TTLCache(maxsize=512, ttl=5)  # 5 seconds cooldown
 
 
-# Cache for storing user-related data
-class UserCache:
-    """Centralized cache management for user-related data"""
-    
-    def __init__(self):
-        # Initialize from database
-        self.banned_users: Set[str] = set(DB.blocked_users_cache)
-        self.admin_users: Set[str] = set(DB.admins_users)
-        # Rate limiting components
-        self.rate_limiter = RateLimiter()
-        # Store warned users with TTL cache (auto-expiry after 60 seconds)
-        self.warned_users: TTLCache = TTLCache(maxsize=128, ttl=60)
-        # Track reported users to avoid duplicate reports
-        self.reported_users: Set[str] = set()
-    
-    def is_banned(self, user_id: str) -> bool:
-        """Check if a user is banned"""
-        return user_id in self.banned_users
-    
-    def is_admin(self, user_id: str) -> bool:
-        """Check if a user is an admin"""
-        return user_id in self.admin_users
-    
-    def is_owner(self, user_id: str) -> bool:
-        """Check if a user is the owner"""
-        return user_id == str(OWNER_ID)
-    
-    def refresh_banned_users(self) -> None:
-        """Refresh banned users list from database"""
-        self.banned_users = set(DB.blocked_users_cache)
-    
-    def refresh_admin_users(self) -> None:
-        """Refresh admin users list from database"""
-        self.admin_users = set(DB.admins_users)
-
-
-# Initialize the user cache
-user_cache = UserCache()
-
-# Warning message for rate-limited users
-WARNING_MESSAGE = "Spam detected! Ignoring your requests for a few minutes."
-
-
-async def handle_rate_limited_user(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: str) -> None:
-    """Handle rate-limited users consistently with proper logging"""
-    if user_id not in user_cache.warned_users:
-        # First warning - send message with photo
-        try:
-            await update.message.reply_photo(
-                photo=load_asset(ERROR429),
-                caption=WARNING_MESSAGE,
-                reply_markup=RATE_LIMITION
-            )
-            user_cache.warned_users[user_id] = 1
-            logger.info(f"Rate limit warning sent to user {user_id}")
-        except Exception as e:
-            logger.error(f"Failed to send rate limit warning: {e}")
-    
-    elif user_id not in user_cache.reported_users:
-        # User continued spamming after warning - report to admin channel
-        try:
-            first_name = update.effective_user.first_name
-            message = f"First Name: {first_name}, UserId: <code>{user_id}</code>\n\nHas been caught spamming even after warning message was sent."
-            
-            await context.bot.send_message(
-                chat_id=LOGGER_CHATID, 
-                text=message, 
-                parse_mode="HTML"
-            )
-            user_cache.reported_users.add(user_id)
-            logger.warning(f"User {user_id} reported for continued spamming")
-        except Exception as e:
-            logger.error(f"Failed to report spamming user: {e}")
-
-
-def rate_limit(func: Callable) -> Callable:
+def rate_limit(func):
     """
     Restricts users from spamming commands or pressing buttons multiple times
-    using leaky bucket algorithm via pyrate_limiter.
+    using leaky bucket algorithm and pyrate_limiter with enhanced error handling
+    and spam prevention.
     """
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any) -> Any:
-        if not update.effective_user:
-            logger.warning("Rate limit check failed: No effective user found")
-            return
-            
-        user_id = str(update.effective_user.id)
-        
+    async def wrapper(update, context, *args, **kwargs):
         try:
-            is_limited = await user_cache.rate_limiter.acquire(user_id)
+            userid = update.effective_user.id
+            command = update.message.text.split()[0] if update.message and update.message.text else "unknown"
             
-            if is_limited:
-                await handle_rate_limited_user(update, context, user_id)
+            # Create a unique key for this user+command combination
+            cooldown_key = f"{userid}:{command}"
+            
+            # Check if this user+command is in cooldown
+            if cooldown_key in command_cooldowns:
                 return
             
-            # User is not rate limited - remove from reported set if they were previously there
-            user_cache.reported_users.discard(user_id)
-            return await func(update, context, *args, **kwargs)
+            # Check rate limit
+            is_limited = await ratelimit.acquire(userid)
             
+            if is_limited:
+                if userid not in warned_users:
+                    try:
+                        # Send warning only once
+                        await update.message.reply_photo(
+                            photo=load_asset(ERROR429),
+                            caption=warning_message,
+                            reply_markup=RATE_LIMITION
+                        )
+                        warned_users[userid] = datetime.now()
+                        
+                        # Log the rate limit event
+                        logger.warning(f"Rate limit applied for user {userid} ({update.effective_user.first_name})")
+                    except Exception as e:
+                        logger.error(f"Error sending rate limit message: {str(e)}")
+                    return
+                
+                elif userid not in reported_users:
+                    # Report user only once
+                    message = (
+                        f"⚠️ <b>Spam Alert</b> ⚠️\n\n"
+                        f"First Name: {update.effective_user.first_name}\n"
+                        f"Username: @{update.effective_user.username if update.effective_user.username else 'None'}\n"
+                        f"User ID: <code>{userid}</code>\n\n"
+                        f"Has been caught spamming even after warning."
+                    )
+                    try:
+                        await context.bot.send_message(
+                            chat_id=LOGGER_CHATID, text=message, parse_mode="HTML"
+                        )
+                        reported_users[userid] = True
+                    except Exception as e:
+                        logger.error(f"Error reporting spam user: {str(e)}")
+                    return
+                return  # Silently ignore further requests
+            
+            # User is not rate limited, add to command cooldown and execute function
+            command_cooldowns[cooldown_key] = True
+            return await func(update, context, *args, **kwargs)
+        
         except Exception as e:
-            logger.error(f"Error in rate_limit decorator: {e}")
-            # Fall through to original function to avoid blocking legitimate requests
-            return await func(update, context, *args, **kwargs)
-
+            logger.error(f"Error in rate_limit decorator: {str(e)}")
+            try:
+                await update.message.reply_text("An error occurred. Please try again later.")
+            except:
+                pass
+            
+    wrapper.__name__ = func.__name__
     return wrapper
 
 
-def restricted(func: Callable) -> Callable:
+def restricted(func):
     """
-    Restricts command access to non-banned users only.
-    """
-    @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any) -> Optional[Any]:
-        if not update.effective_user:
-            logger.warning("Restricted check failed: No effective user found")
-            return
-            
-        user_id = str(update.effective_user.id)
-        
-        # Periodically refresh the banned users list (e.g., every 100th check)
-        if hash(user_id) % 100 == 0:
-            user_cache.refresh_banned_users()
-        
-        if user_cache.is_banned(user_id):
-            logger.info(f"Unauthorized access denied for banned user {user_id}")
-            return
-        
-        return await func(update, context, *args, **kwargs)
-    
-    return wrapper
-
-
-def is_admin(func: Callable) -> Callable:
-    """
-    Restricts command access to admin users only.
-    Sends a notification if a non-admin user attempts to use an admin command.
+    Restricts access to commands for banned users with improved error handling.
     """
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any) -> Optional[Any]:
-        if not update.effective_user:
-            logger.warning("Admin check failed: No effective user found")
-            return
-            
-        user_id = str(update.effective_user.id)
-        
-        # Periodically refresh the admin users list
-        if hash(user_id) % 50 == 0:
-            user_cache.refresh_admin_users()
-        
-        if user_cache.is_admin(user_id) or user_cache.is_owner(user_id):
-            return await func(update, context, *args, **kwargs)
-        
-        logger.info(f"Admin access denied for user {user_id}")
+    async def wrapped(update, context, *args, **kwargs):
         try:
-            await update.message.reply_text(
-                "Access denied. Only admins can do this.", 
-                reply_markup=ADMIN_ERROR
-            )
-        except Exception as e:
-            logger.error(f"Failed to send admin denial message: {e}")
-        
-        return None
-    
-    return wrapper
-
-
-def is_owner(func: Callable) -> Callable:
-    """
-    Restricts command access to the owner only.
-    """
-    @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any) -> Optional[Any]:
-        if not update.effective_user:
-            logger.warning("Owner check failed: No effective user found")
-            return
+            user_id = str(update.effective_user.id)
             
-        user_id = str(update.effective_user.id)
-        
-        if user_cache.is_owner(user_id):
+            # Check if user is banned
+            if user_id in LIST_OF_BAN_IDS:
+                logger.info(f"Blocked user {user_id} attempted to use {func.__name__}")
+                return
+            
+            # Execute the function for non-banned users
             return await func(update, context, *args, **kwargs)
         
-        logger.info(f"Owner access denied for user {user_id}")
-        try:
-            await update.message.reply_text("Access denied. Only the owner can do this.")
         except Exception as e:
-            logger.error(f"Failed to send owner denial message: {e}")
-        
-        return None
+            logger.error(f"Error in restricted decorator: {str(e)}")
+            
+    return wrapped
+
+
+def IsAdmin(func):
+    """
+    Restricts access to admin-only commands with improved error handling
+    and user feedback.
+    """
+    @wraps(func)
+    async def wrapped(update, context, *args, **kwargs):
+        try:
+            user_id = str(update.effective_user.id)
+            
+            # Check if user is admin or owner
+            if user_id in ADMIN_ID_LIST or user_id == str(OWNER_ID):
+                return await func(update, context, *args, **kwargs)
+            
+            # Handle non-admin users
+            logger.info(f"Non-admin user {user_id} attempted to use admin command {func.__name__}")
+            
+            try:
+                await update.message.reply_text(
+                    "Aᴄᴄᴇss ᴅᴇɴɪᴇᴅ. Oɴʟʏ ᴀᴅᴍɪɴs ᴄᴀɴ ᴅᴏ ᴛʜɪs.", 
+                    reply_markup=ADMIN_ERROR
+                )
+            except Exception as reply_error:
+                logger.error(f"Could not send admin denial message: {str(reply_error)}")
+                
+        except Exception as e:
+            logger.error(f"Error in IsAdmin decorator: {str(e)}")
+            
+    return wrapped
+
+
+def IsOwner(func):
+    """
+    Restricts access to owner-only commands with improved error handling
+    and user feedback.
+    """
+    @wraps(func)
+    async def wrapped(update, context, *args, **kwargs):
+        try:
+            user_id = str(update.effective_user.id)
+            
+            # Check if user is the owner
+            if user_id == str(OWNER_ID):
+                return await func(update, context, *args, **kwargs)
+            
+            # Handle non-owner users
+            logger.info(f"Non-owner user {user_id} attempted to use owner command {func.__name__}")
+            
+            try:
+                await update.message.reply_text("Aᴄᴄᴇss ᴅᴇɴɪᴇᴅ. Oɴʟʏ Owner ᴄᴀɴ ᴅᴏ ᴛʜɪs.")
+            except Exception as reply_error:
+                logger.error(f"Could not send owner denial message: {str(reply_error)}")
+                
+        except Exception as e:
+            logger.error(f"Error in IsOwner decorator: {str(e)}")
+            
+    return wrapped
+
+
+# Additional utility decorator for message throttling
+def throttle(seconds=3):
+    """
+    Throttles how often a user can use a specific command.
+    Different from rate_limit as it's per-command based.
     
-    return wrapper
-
-
-# Aliases for backward compatibility
-IsAdmin = is_admin
-IsOwner = is_owner
+    Args:
+        seconds: The cooldown period in seconds
+    """
+    def decorator(func):
+        # Store last usage timestamps
+        last_used = TTLCache(maxsize=1024, ttl=seconds*2)
+        
+        @wraps(func)
+        async def wrapped(update, context, *args, **kwargs):
+            try:
+                user_id = update.effective_user.id
+                current_time = datetime.now().timestamp()
+                
+                # Check if user is in cooldown for this command
+                if user_id in last_used:
+                    time_diff = current_time - last_used[user_id]
+                    if time_diff < seconds:
+                        # Optional: silently ignore or inform about cooldown
+                        return
+                
+                # Update the last usage time
+                last_used[user_id] = current_time
+                
+                # Execute the function
+                return await func(update, context, *args, **kwargs)
+                
+            except Exception as e:
+                logger.error(f"Error in throttle decorator: {str(e)}")
+                
+        return wrapped
+    return decorator
