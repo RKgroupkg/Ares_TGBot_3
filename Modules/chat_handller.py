@@ -313,7 +313,7 @@ async def reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             await handle_error(update, f"Error processing media: {e}")
 
 
-async def download_and_process_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def media_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Download and process media files for Gemini analysis.
     
