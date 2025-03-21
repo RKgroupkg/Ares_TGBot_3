@@ -611,25 +611,7 @@ async def bot_activation_message(context: ContextTypes.DEFAULT_TYPE) -> None:
         print(f"Failed to send activation message: {e}")
 
 
-# Register command handlers
-def register_handlers(application):
-    """Register all handlers for the admin management module."""
-    
-    # Admin management commands
-    application.add_handler(CommandHandler("add_admin", add_admin))
-    application.add_handler(CommandHandler(["rm_admin", "remove_admin"], remove_admin))
-    application.add_handler(CommandHandler(["admins", "list_admin"], list_admins))
-    application.add_handler(CommandHandler("refresh", refresh_users))
-    application.add_handler(CommandHandler("blocked", list_blocked_users))
-    application.add_handler(CommandHandler("off", shutdown_bot))
-    
-    # Callback handlers for interactive features
-    application.add_handler(CallbackQueryHandler(admin_pagination_callback, pattern="^admin_(prev|next|refresh)$"))
-    application.add_handler(CallbackQueryHandler(blocked_pagination_callback, pattern="^blocked_(prev|next|refresh)$"))
-    application.add_handler(CallbackQueryHandler(view_users_callback, pattern="^view_(admins|blocked)$"))
-    application.add_handler(CallbackQueryHandler(shutdown_callback, pattern="^shutdown_(confirm|cancel)$"))
-    
-    return application
+
 
 
 # Standalone command handlers (for backward compatibility)

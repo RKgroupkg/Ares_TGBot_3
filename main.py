@@ -32,7 +32,7 @@ from Modules.users_command.Inline_collaback import YOUTUBE_CALL_BACK
 
 logger.info("Importing Owners commands..")
 from Modules.adminCommands.terminal import SHELL_CMD,EXECUTE_COMMAND
-from Modules.adminCommands.owner import ADD_admin_CMD,RM_admin_CMD,ADMINS_LIST_CMD,REFRESH_CMD,OFF_COMMAD,BOT_ACTIVATION_MESSAGE
+from Modules.adminCommands.owner import ADD_admin_CMD,RM_admin_CMD,ADMINS_LIST_CMD,REFRESH_CMD,OFF_COMMAND,BOT_ACTIVATION_MESSAGE
 logger.info("importing telgram modules....")
 from telegram.constants import ParseMode
 from telegram import Update
@@ -166,7 +166,7 @@ def main() -> None:
     application.add_handler(RM_admin_CMD)
     application.add_handler(ADMINS_LIST_CMD)
     application.add_handler(REFRESH_CMD)
-    application.add_handler(OFF_COMMAD)
+    application.add_handler(OFF_COMMAND)
 
 
     # Admin commands
