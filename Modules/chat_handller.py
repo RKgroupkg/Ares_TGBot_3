@@ -70,10 +70,6 @@ async def process_message(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     chat_id = update.message.chat_id
     user_id = str(update.message.from_user.id)
     
-    # Check if user is blocked
-    if DB.is_user_blocked(user_id):
-        logger.info(f"Ignoring command from blocked user {user_id}.")
-        return
 
     user_message = update.message.text.lower() if update.message.text else ""
     
@@ -271,10 +267,6 @@ async def Reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     chat_id = message.chat_id
     user_id = str(message.from_user.id)
     
-    # Check if user is blocked
-    if DB.is_user_blocked(user_id):
-        logger.info(f"Ignoring media from blocked user {user_id}.")
-        return
     
     # Determine if bot should process this media
     reply_to_bot = (
@@ -306,7 +298,7 @@ async def Reply_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 return
                 
             # Process the media
-            await download_and_process_media(update, context)
+            await media_handler(update, context)
             
         except Exception as e:
             logger.error(f"Error handling media: {e}", exc_info=True)
