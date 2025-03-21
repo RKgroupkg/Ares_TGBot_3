@@ -11,7 +11,7 @@ import time
 import subprocess
 
 from utils.decoders_ import IsOwner
-from utils.helper.pasting_servises import katbin_paste, hastebin_paste
+from utils.helper.pasting_servises import katbin_paste, telegraph_paste
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -113,7 +113,7 @@ async def shell(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             try:
                 # If katbin fails, try hastebin
-                output_url = await hastebin_paste(result)
+                output_url = await telegraph_paste(result)
                 service_name = "Hastebin"
             except Exception:
                 # If both fail, save to file and send the file
@@ -494,7 +494,7 @@ async def py_runexec(update: Update, context: ContextTypes.DEFAULT_TYPE, replyms
                 service_name = "Katbin"
             except Exception:
                 try:
-                    output_url = await hastebin_paste(final_output)
+                    output_url = await telegraph_paste(final_output)
                     service_name = "Hastebin"
                 except Exception:
                     # If both fail, save to file and send the file
