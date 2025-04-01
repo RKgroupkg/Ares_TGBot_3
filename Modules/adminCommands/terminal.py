@@ -3,146 +3,203 @@ from utils.log import logger
 import asyncio
 import sys
 import html
+import shlex
 import traceback
-from io import  StringIO
-from os import remove
+from io import StringIO
+from typing import Optional, Tuple
 
 from utils.decoders_ import IsOwner
-
 from utils.helper.pasting_servises import katbin_paste
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ContextTypes,
     CommandHandler,
 )
 
+# Maximum output size before using paste service
+MAX_OUTPUT_SIZE = 4000
+
+async def handle_large_output(text: str, message_prefix: str = "Output") -> Tuple[str, Optional[InlineKeyboardMarkup]]:
+    """
+    Handles large text output by using a paste service.
+    
+    Args:
+        text: The text to handle
+        message_prefix: Prefix for the message
+    
+    Returns:
+        Tuple containing message text and optional keyboard markup
+    """
+    try:
+        output_url = await katbin_paste(text)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Open in Browser", url=output_url)]
+        ])
+        return f"{message_prefix} too large.\n\nSee the output at: {output_url}", keyboard
+    except Exception as e:
+        logger.error(f"Failed to paste content: {e}")
+        return f"Failed to paste content: {str(e)[:200]}...", None
+
+async def send_formatted_response(update_message, text: str, is_error: bool = False, edit_message=None):
+    """
+    Formats and sends bot response with proper handling for large outputs.
+    
+    Args:
+        update_message: The original message to reply to if edit_message is None
+        text: Text content to send
+        is_error: Whether this is an error message
+        edit_message: Message to edit instead of sending new one
+    """
+    message = edit_message or await update_message.reply_text("Processing...")
+    
+    prefix = "Error" if is_error else "Output"
+    
+    if len(text) > MAX_OUTPUT_SIZE:
+        result_text, keyboard = await handle_large_output(text, prefix)
+        await message.edit_text(result_text, reply_markup=keyboard)
+    else:
+        formatted_text = f"<b>{prefix} :-</b>\n\n<pre>{html.escape(text)}</pre>"
+        await message.edit_text(formatted_text, parse_mode="HTML")
+
 
 @IsOwner
-async def Shell(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def shell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Executes command in terminal via bot.
     """
-    args = context.args
-    if not args:
-        shell_usage = f"<b>USAGE:</b> Executes terminal commands directly via bot.\n\n<b>Example: </b><pre>/shell pip install requests</pre>"
-        await update.message.reply_text(shell_usage,parse_mode="HTML")
+    if not context.args:
+        shell_usage = (
+            "<b>USAGE:</b> Executes terminal commands directly via bot.\n\n"
+            "<b>Example: </b><pre>/shell pip install requests</pre>"
+        )
+        await update.message.reply_text(shell_usage, parse_mode="HTML")
         return
     
-    content = ' '.join(args)
-
-
-    try:
-        shell_replymsg = await update.message.reply_text("running...")
-        shell = await asyncio.create_subprocess_exec(content, stdout=-1, stderr=-1)
-        stdout, stderr = await shell.communicate()
-        result = str(stdout.decode().strip()) + str(stderr.decode().strip())
-    except Exception as error:
-
-        if len(error) > 3980:
-            logger.error(f"{error}")
-            await shell_replymsg.edit_text("error output too large. sending it as a file pasting it..")
-            output = await katbin_paste(error)
-            keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Open in Browser", url=output)]
-                ])
-            return await shell_replymsg.edit_text(f"Error :- {html.escape(output)}",reply_markup=keyboard)
-        else:
-            return await shell_replymsg.edit_text(f"Error :-\n\n{error}")
-
-
-        
-        
+    command = ' '.join(context.args)
+    shell_replymsg = await update.message.reply_text("Running command...")
     
-    if len(result) > 4000:
-        await shell_replymsg.edit_text("output too large. sending it as a file pasting it..")
-        output = await katbin_paste(result)
-        keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Open in Browser", url=output)]
-            ])
-        await shell_replymsg.edit_text(f"output too large.\n\nSee the output at:{output}",reply_markup=keyboard)
-    else:
-        await shell_replymsg.edit_text(f"<b>Output :-</b>\n\n<pre>{html.escape(result)}</pre>",parse_mode="HTML")
-
-
+    try:
+        # Use shlex to properly handle command arguments
+        cmd_args = shlex.split(command)
+        process = await asyncio.create_subprocess_exec(
+            cmd_args[0], *cmd_args[1:], 
+            stdout=asyncio.subprocess.PIPE, 
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # Set a timeout for command execution (10 minutes)
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
+            stdout_text = stdout.decode('utf-8', errors='replace').strip()
+            stderr_text = stderr.decode('utf-8', errors='replace').strip()
+            
+            result = stdout_text
+            if stderr_text:
+                result += "\n\nSTDERR:\n" + stderr_text
+                
+            await send_formatted_response(update.message, result, is_error=process.returncode != 0, edit_message=shell_replymsg)
+            
+        except asyncio.TimeoutError:
+            await shell_replymsg.edit_text("⚠️ Command execution timed out after 10 minutes")
+            # Try to terminate the process
+            try:
+                process.terminate()
+            except:
+                pass
+    
+    except Exception as error:
+        error_text = str(error)
+        logger.error(f"Shell command error: {error_text}")
+        await send_formatted_response(update.message, error_text, is_error=True, edit_message=shell_replymsg)
 
 
 @IsOwner
-async def Python(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    if not args:
-        Python_usage =f"<b>Usage:</b> Executes python commands directly via bot.\n\n<b>Example: </b><pre>/exec print('hello world')</pre>"
-        await update.message.reply_text(Python_usage,parse_mode="HTML")
+async def python_exec(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Executes Python code directly via bot.
+    """
+    if not context.args:
+        python_usage = (
+            "<b>Usage:</b> Executes Python code directly via bot.\n\n"
+            "<b>Example: </b><pre>/exec print('hello world')</pre>"
+        )
+        await update.message.reply_text(python_usage, parse_mode="HTML")
         return
     
-    
-
-    replymsg = await update.message.reply_text("executing..", quote=True)
-    await py_runexec(update, context, replymsg)
+    replymsg = await update.message.reply_text("Executing Python code...")
+    await execute_python_code(update, context, replymsg)
 
 
-
-async def aexec(code,update: Update, context: ContextTypes.DEFAULT_TYPE):
-    exec(
-        "async def __aexec(update, context): "
-        + "".join(f"\n {a}" for a in code.split("\n"))
-    )
-    return await locals()["__aexec"](update, context)
-
-async def py_runexec(update: Update, context: ContextTypes.DEFAULT_TYPE, replymsg):
+async def execute_python_code(update: Update, context: ContextTypes.DEFAULT_TYPE, replymsg):
+    """
+    Executes Python code with proper output capturing and error handling.
+    """
+    # Save original stdout/stderr
     old_stderr = sys.stderr
     old_stdout = sys.stdout
     redirected_output = sys.stdout = StringIO()
     redirected_error = sys.stderr = StringIO()
-    stdout, stderr, exc = None, None, None
-
-    args = context.args
-    code =' '.join(args)
-
-    try:
-        await aexec(code, update, context)
-    except Exception:
-        exc = traceback.format_exc()
-
-    stdout = redirected_output.getvalue()
-    stderr = redirected_error.getvalue()
-    sys.stdout = old_stdout
-    sys.stderr = old_stderr
-
-    evaluation = ""         
-    if exc:
-        evaluation = exc
-    elif stderr:
-        evaluation = stderr
-    elif stdout:
-        evaluation = stdout
-    else:
-        evaluation = "success"
-    final_output = f"{evaluation.strip()}"
-
+    
+    code = ' '.join(context.args)
     
     try:
-        if len(final_output) > 4000:
-            await replymsg.edit_text("output too large. sending it as a file pasting it..")
-            output = await katbin_paste(final_output)
-            keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Open in Browser", url=output)]
-                ])
-            await replymsg.edit_text(f"output too large.\n\nSee the output at:{output}",reply_markup=keyboard)
-        else:
-            await replymsg.edit_text(f"<b>Output :-</b>\n\n<pre>{html.escape(final_output)}</pre>",parse_mode="HTML")
+        # Set a timeout for Python code execution
+        try:
+            await asyncio.wait_for(_aexec(code, update, context), timeout=60)
+            stdout = redirected_output.getvalue()
+            stderr = redirected_error.getvalue()
+            
+            # Restore stdout/stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            
+            if stderr:
+                evaluation = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}" if stdout else stderr
+                is_error = True
+            elif stdout:
+                evaluation = stdout
+                is_error = False
+            else:
+                evaluation = "Code executed successfully with no output"
+                is_error = False
+                
+        except asyncio.TimeoutError:
+            # Restore stdout/stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            await replymsg.edit_text("⚠️ Python code execution timed out after 60 seconds")
+            return
+            
     except Exception as e:
-        logger.warning("retrying wth /paste feature")
-        await replymsg.edit_text("An error occured while sending. sending it as a file pasting it..")
-        output = await katbin_paste(final_output)
-        keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Open in Browser", url=output)]
-                ])
-        await replymsg.edit_text(f"output too large.\n\nSee the output at:{output}",reply_markup=keyboard)
+        # Restore stdout/stderr
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+        
+        # Get traceback
+        evaluation = traceback.format_exc()
+        is_error = True
+    
+    await send_formatted_response(update.message, evaluation, is_error=is_error, edit_message=replymsg)
 
 
+async def _aexec(code, update, context):
+    """
+    Asynchronously executes python code.
+    """
+    # Add proper indentation for the code
+    exec_code = "\n".join(f"    {line}" for line in code.split("\n"))
+    
+    # Wrap in async function 
+    wrapped_code = f"""
+async def __aexec(update, context):
+{exec_code}
+"""
+    
+    # Execute the wrapped code
+    exec(wrapped_code)
+    return await locals()["__aexec"](update, context)
 
 
-
-SHELL_CMD = CommandHandler(("power_shell","shell","ps"),Shell)
-EXECUTE_COMMAND = CommandHandler(("py","python","execute"),Python)
+# Register command handlers
+SHELL_CMD = CommandHandler(("shell", "power_shell", "ps"), shell_command)
+EXECUTE_COMMAND = CommandHandler(("py", "python", "exec", "execute"), python_exec)

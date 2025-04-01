@@ -1,7 +1,7 @@
 from utils.decoders_ import IsOwner
 from telegram import Update
 
-from config import OWNER_ID,SPECIAL_PASSWORD
+from config import OWNER_ID
 import datetime 
 
 import sys
@@ -162,12 +162,9 @@ async def Refresh(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @IsOwner
 async def OFF(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check if the correct special password is provided as an argument
-    if len(context.args) > 0 and context.args[0] == SPECIAL_PASSWORD:
-            await update.message.reply_text(f"Bot is shutting down...\n\nSession info: {SPECIAL_PASSWORD}")
-            # Perform any cleanup or final tasks here if needed
-            sys.exit(0)  # Exit the script with status code 0 (success)
-    else:
-            await update.message.reply_text("Incorrect password.")
+    await update.message.reply_text(f"Bot is shutting down...\n\n")
+    # Perform any cleanup or final tasks here if needed  
+    sys.exit(0)  # Exit the script with status code 0 (success)
    
 async def BOT_ACTIVATION_MESSAGE(update):
         # Get the current time when the bot starts
@@ -176,7 +173,6 @@ async def BOT_ACTIVATION_MESSAGE(update):
         start_message = (
             f"<b>Bot Started</b>\n"
             f"Start Time: <code>{START_TIME}</code>\n"
-            f"Your shutdown password is: <code>{SPECIAL_PASSWORD}</code>"
         )
         await update.bot.send_message(chat_id=OWNER_ID, text=start_message, parse_mode="HTML")
 

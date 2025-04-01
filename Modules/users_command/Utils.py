@@ -23,8 +23,8 @@ async def paste(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Paste the text in katb.in website.
     """
     
-    paste_usage = f"<b>Usage:</b> paste the text to katb.in website. Reply to a text file, text message or just type the text after command.\n\n<b>Example:</b> /paste type your text"
-    paste_reply = await update.message.reply_text("pasting...")
+    paste_usage = f"♔ <b>Usage:</b> paste the text to katb.in website. Reply to a text file, text message or just type the text after command.\n\n<b>Example:</b> /paste type your text"
+    paste_reply = await update.message.reply_text("♔ pasting...")
     replied_message = update.message.reply_to_message
     
     args = context.args
@@ -79,7 +79,7 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     botuptime = get_readable_time(time() - BotStartTime)
     pong = (end - start).microseconds / 1000
     await pong_reply.edit_text(
-        f"<b>Ping Time:</b><i>{pong}</i>ms | <b>Bot is alive since:</b> <i>{botuptime}</i>",parse_mode="HTML")
+        f"♔ <b>Ping Time:</b><i>{pong}</i>ms |♔  <b>Bot is alive since:</b> <i>{botuptime}</i>",parse_mode="HTML")
 
 async def ID(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -91,23 +91,23 @@ async def ID(update: Update, context: ContextTypes.DEFAULT_TYPE):
             replied_message_id = message.reply_to_message.message_id
             replied_user_id = message.reply_to_message.from_user.id
             text = (
-                f"<b>ᴍᴇssᴀɢᴇ ɪᴅ:</b> <code>{message.message_id}</code>\n"
-                f"<b>ʏᴏᴜʀ ɪᴅ:</b> <code>{message.from_user.id}</code>\n"
-                f"<b>ᴄʜᴀᴛ ɪᴅ:</b> <code>{message.chat_id}</code>\n\n"
-                f"<b>ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:</b> <code>{replied_message_id}</code>\n"
-                f"<b>ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:</b> <code>{replied_user_id}</code>"
+                f"♔ <b>Message Id:</b> <code>{message.message_id}</code>\n"
+                f"♕ <b>ʏᴏᴜʀ ɪᴅ:</b> <code>{message.from_user.id}</code>\n"
+                f"♚ <b>ᴄʜᴀᴛ ɪᴅ:</b> <code>{message.chat_id}</code>\n\n"
+                f"♛ <b>ʀᴇᴘʟɪᴇᴅ ᴍᴇssᴀɢᴇ ɪᴅ:</b> <code>{replied_message_id}</code>\n"
+                f"♝ <b>ʀᴇᴘʟɪᴇᴅ ᴜsᴇʀ ɪᴅ:</b> <code>{replied_user_id}</code>"
             )
         else:
             text = (
-                f"<b>ᴍᴇssᴀɢᴇ ɪᴅ:</b> <code>{message.message_id}</code>\n"
-                f"<b>ʏᴏᴜʀ ɪᴅ:</b> <code>{message.from_user.id}</code>\n"
-                f"<b>ᴄʜᴀᴛ ɪᴅ:</b> <code>{message.chat_id}</code>\n\n"
-                f"<i>No message was replied to.</i>"
+                f"♞ <b>ᴍᴇssᴀɢᴇ ɪᴅ:</b> <code>{message.message_id}</code>\n"
+                f"♜ <b>ʏᴏᴜʀ ɪᴅ:</b> <code>{message.from_user.id}</code>\n"
+                f"♙ <b>ᴄʜᴀᴛ ɪᴅ:</b> <code>{message.chat_id}</code>\n\n"
+                f"♚ <i>No message was replied to.</i>"
             )
-        
+         
         await context.bot.send_message(chat_id=update.effective_chat.id, text=text, parse_mode="HTML")
     except Exception as e:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"An error occurred: {e}")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"♔ An error occurred: {e}")
 
 
 PASTE_CMD = CommandHandler("paste",paste)

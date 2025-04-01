@@ -2,6 +2,10 @@ import time
 import secrets
 import json
 import os
+import dotenv
+
+dotenv.load_dotenv()
+
 FIXIE_SOCKS_HOST = 'http://129.213.89.36:80'
 BotStartTime = time.time()
 SPECIAL_PASSWORD = secrets.token_urlsafe(32)

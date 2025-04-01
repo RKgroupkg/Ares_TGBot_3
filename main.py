@@ -26,8 +26,6 @@ logger.info("Importing users util commands...")
 from Modules.users_command.Utils import PASTE_CMD,PING_CMD,ID_CMD
 logger.info("Importing users Commands....")
 from Modules.users_command.google import GOOGLE_SEARCH_COMMAND,GOOGLE_SERACH_IMG_COMMAND,WIKI_COMMAND,YT_COMMND
-from Modules.users_command.ai import IMAGINE_COMMAND_HANDLLER
-from Modules.users_command.Inline_collaback import YOUTUBE_CALL_BACK
 
 logger.info("Importing Owners commands..")
 from Modules.adminCommands.terminal import SHELL_CMD,EXECUTE_COMMAND
@@ -49,7 +47,8 @@ from keep_alive_ping import KeepAliveService
 # Import keep Alive for render/koyeb
 
 service = KeepAliveService(
-    ping_interval=60  # Ping every 1 minutes
+    ping_interval=60,  # Ping every 1 minutes
+    log_level = 30 # warning 
 )
 
 logger.info("ALl modules imported successfully...")
@@ -95,8 +94,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await get_explanation(update, context ,query_data)
     elif query_data.startswith("extra_info_"):
         await get_explanation(update, context ,query_data)
-    elif query_data.startswith("audio:") or query_data.startswith("video:"):
-        await YOUTUBE_CALL_BACK(update, context)
     elif query_data == "home_support":
         await handle_support(update, context)
     elif query_data.startswith("back"):
@@ -117,7 +114,7 @@ async def post_init(application: Application) -> None:
     start_message = (
             f"<b>Bot Started</b>\n"
             f"Start Time: <code>{START_TIME}</code>\n"
-            f"Your shutdown password is: <code>{SPECIAL_PASSWORD}</code>"
+            # f"Your shutdown password is: <code>{SPECIAL_PASSWORD}</code>"
         )
         
     await application.bot.send_message(
@@ -147,7 +144,6 @@ def main() -> None:
     application.add_handler(GOOGLE_SEARCH_COMMAND)
     application.add_handler(GOOGLE_SERACH_IMG_COMMAND)
     application.add_handler(WIKI_COMMAND)
-    application.add_handler(IMAGINE_COMMAND_HANDLLER)
     application.add_handler(YT_COMMND)
     
     #Users Util commands
