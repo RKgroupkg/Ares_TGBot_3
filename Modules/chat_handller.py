@@ -37,7 +37,7 @@ google_search_tool = Tool(
 # Configure Gemini AI
 genai.configure(api_key=GEMINE_API_KEY)
 model = genai.GenerativeModel(
-    model_name="models/gemini-1.5-flash",
+    model_name="gemini-2.5-flash-lite",
     safety_settings=SAFETY_SETTINGS,
     generation_config=GENERATION_CONFIG,
     system_instruction=SYSTEM_INSTRUCTION
@@ -86,7 +86,7 @@ def get_chat_history(chat_id):
                 instruction = SYSTEM_INSTRUCTION
             
             model_temp = genai.GenerativeModel(
-                model_name="models/gemini-1.5-flash",
+                model_name="gemini-2.5-flash-lite",
                 safety_settings=SAFETY_SETTINGS,
                 generation_config=GENERATION_CONFIG,
                 system_instruction=instruction
@@ -490,7 +490,7 @@ async def changeprompt(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
            await msg.edit_text(f"Tʜᴇ ᴘʀᴏᴍᴘᴛ ʜᴀs ʙᴇᴇɴ 🎉sᴜᴄᴄᴇssғᴜʟʟʏ🎉 ᴄʜᴀɴɢᴇᴅ ᴛᴏ: <b>'ᴅᴇғᴀᴜʟᴛ'</b>", parse_mode='HTML')
         else:
                 model_temp = genai.GenerativeModel(
-                    model_name="models/gemini-1.5-flash",
+                    model_name="gemini-2.5-flash-lite",
                     safety_settings=SAFETY_SETTINGS,
                     generation_config=GENERATION_CONFIG,
                 
@@ -532,5 +532,6 @@ Chat_Info_command =CommandHandler(("info","myinfo","Info"),Chat_Info)
                        
             
         
+
 
 
